@@ -30,8 +30,11 @@ const hydrateUser = (input, options) => {
     }
 
     if (!input.slug) {
-        input.slug = slugify(input.name);
+        input.slug = input.name;
     }
+
+    input.slug = slugify(input.slug);
+    input.slug = (input.slug.indexOf('-') > -1) ? input.slug.substr(0, input.slug.indexOf('-')) : input.slug;
 
     // Handle the case where there is no email by generating one based on slug or name
     if (!input.email) {
