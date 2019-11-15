@@ -7,9 +7,7 @@ const cliTruncate = require('cli-truncate');
 const stripAnsi = require('strip-ansi');
 const utils = require('./lib/utils');
 
-const renderFullHelper = (tasks, options, level) => {
-    level = level || 0;
-
+const renderFullHelper = (tasks, options, level = 0) => {
     let output = [];
 
     for (const task of tasks) {
@@ -43,11 +41,7 @@ const renderFullHelper = (tasks, options, level) => {
 
         // Deal with subtasks
         if ((task.isPending() || task.hasFailed() || options.collapse === false) && (task.hasFailed() || options.showSubtasks !== false) && task.subtasks.length > 0) {
-            if (task.subtasks.length > options.maxFullTasks) {
-                output = output.concat(renderFlatHelper(task.subtasks, options, level + 1));
-            } else {
-                output = output.concat(renderFullHelper(task.subtasks, options, level + 1));
-            }
+            output = output.concat(renderHelper(task.subtasks, options, level + 1));
         }
     }
 
@@ -85,9 +79,13 @@ const renderFlatHelper = (tasks, options) => {
     return output.join('\n');
 };
 
-const render = (mode, tasks, options) => {
-    let renderHelper = mode === 'flat' ? renderFlatHelper : renderFullHelper;
-    logUpdate(renderHelper(tasks, options));
+const renderHelper = (tasks, options, level = 0) => {
+    const renderer = tasks.length > options.maxFullTasks ? renderFlatHelper : renderFullHelper;
+    return renderer(tasks, options, level);
+};
+
+const render = (tasks, options, level = 0) => {
+    logUpdate(renderHelper(tasks, options, level));
 };
 
 class SmartRenderer {
@@ -108,10 +106,8 @@ class SmartRenderer {
             return;
         }
 
-        this._mode = this._tasks.length > this._options.maxFullTasks ? 'flat' : 'full';
-
         this._id = setInterval(() => {
-            render(this._mode, this._tasks, this._options);
+            render(this._tasks, this._options);
         }, 100);
     }
 
@@ -121,7 +117,7 @@ class SmartRenderer {
             this._id = undefined;
         }
 
-        render(this._mode, this._tasks, this._options);
+        render(this._tasks, this._options);
 
         if (this._options.clearOutput && err === undefined) {
             logUpdate.clear();
