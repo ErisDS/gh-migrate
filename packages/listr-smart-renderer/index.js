@@ -40,7 +40,7 @@ const renderFullHelper = (tasks, options, level = 0) => {
         }
 
         // Deal with subtasks
-        if ((task.isPending() || task.hasFailed() || options.collapse === false) && (task.hasFailed() || options.showSubtasks !== false) && task.subtasks.length > 0) {
+        if (task.subtasks.length > 0) {
             output = output.concat(renderHelper(task.subtasks, options, level + 1));
         }
     }
@@ -94,8 +94,6 @@ class SmartRenderer {
         this._mode = 'full';
         this._options = Object.assign({
             maxFullTasks: 50,
-            showSubtasks: true,
-            collapse: true,
             clearOutput: false
         }, options);
     }
