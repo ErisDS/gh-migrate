@@ -48,14 +48,6 @@ const renderFullHelper = (tasks, options, level) => {
     return output.join('\n');
 };
 
-const renderFull = (tasks, options) => {
-    logUpdate(renderFullHelper(tasks, options));
-};
-
-const renderFlatSummary = (tasks) => {
-    logUpdate(`Finished executing ${tasks.length} tasks`);
-};
-
 const renderFlatHelper = (tasks, options) => {
     let output = [];
     tasks.forEach((task, index) => {
@@ -70,8 +62,9 @@ const renderFlatHelper = (tasks, options) => {
     return output.join('\n');
 };
 
-const renderFlat = (tasks, options) => {
-    logUpdate(renderFlatHelper(tasks, otions));
+const render = (mode, tasks, options) => {
+    let renderHelper = mode === 'flat' ? renderFlatHelper : renderFullHelper;
+    logUpdate(renderHelper(tasks, options));
 };
 
 class SmartRenderer {
@@ -92,18 +85,12 @@ class SmartRenderer {
             return;
         }
 
-        if (this._tasks.length > this._options.maxFullTasks) {
-            this._mode = 'flat';
+        this._mode = this._tasks.length > this._options.maxFullTasks ? 'flat' : 'full';
+
             this._id = setInterval(() => {
-                renderFlat(this._tasks, this._options);
-            }, 100);
-        } else {
-            this._mode = 'full';
-            this._id = setInterval(() => {
-                renderFull(this._tasks, this._options);
+            render(this._mode, this._tasks, this._options);
             }, 100);
         }
-    }
 
     end(err) {
         if (this._id) {
@@ -111,18 +98,12 @@ class SmartRenderer {
             this._id = undefined;
         }
 
-        if (this._mode === 'full') {
-            renderFull(this._tasks, this._options);
-        }
+        render(this._mode, this._tasks, this._options);
 
         if (this._options.clearOutput && err === undefined) {
             logUpdate.clear();
         } else {
             logUpdate.done();
-        }
-
-        if (this._mode === 'flat') {
-            renderFlatSummary(this._tasks);
         }
     }
 }
