@@ -36,7 +36,11 @@ const renderFullHelper = (tasks, options, level) => {
             }
 
             if ((task.isPending() || task.hasFailed() || options.collapse === false) && (task.hasFailed() || options.showSubtasks !== false) && task.subtasks.length > 0) {
-                output = output.concat(renderFullHelper(task.subtasks, options, level + 1));
+                if (task.subtasks.length > options.maxFullTasks) {
+                    output = output.concat(renderFlatHelper(task.subtasks, options, level + 1));
+                } else {
+                    output = output.concat(renderFullHelper(task.subtasks, options, level + 1));
+                }
             }
         }
     }
@@ -52,21 +56,22 @@ const renderFlatSummary = (tasks) => {
     logUpdate(`Finished executing ${tasks.length} tasks`);
 };
 
-const renderFlat = (tasks, options) => {
+const renderFlatHelper = (tasks, options) => {
+    let output = [];
     tasks.forEach((task, index) => {
-        task.subscribe((event) => {
-            // console.log('new event', event);
-            if (event.type === 'STATE' && task.isPending()) {
-                logUpdate(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`);
-            }
-
-            if (event.type === 'STATE' && task.hasFailed()) {
-                logUpdate(`Executing task ${index + 1} of ${tasks.length}: FAILED`);
-                logUpdate.done();
-                // console.log(task);
-            }
-        });
+        if (task.hasFailed()) {
+            output.push(`Executing task ${index + 1} of ${tasks.length}: FAILED - ${task.output}`);
+        }
+        if (task.isPending()) {
+            output.push(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`);
+        }
     });
+
+    return output.join('\n');
+};
+
+const renderFlat = (tasks, options) => {
+    logUpdate(renderFlatHelper(tasks, otions));
 };
 
 class SmartRenderer {
@@ -82,16 +87,18 @@ class SmartRenderer {
     }
 
     render() {
+        if (this._id) {
+            // Do not render if we are already rendering
+            return;
+        }
+
         if (this._tasks.length > this._options.maxFullTasks) {
             this._mode = 'flat';
-            renderFlat(this._tasks, this._options);
+            this._id = setInterval(() => {
+                renderFlat(this._tasks, this._options);
+            }, 100);
         } else {
             this._mode = 'full';
-            if (this._id) {
-                // Do not render if we are already rendering
-                return;
-            }
-
             this._id = setInterval(() => {
                 renderFull(this._tasks, this._options);
             }, 100);
@@ -99,20 +106,22 @@ class SmartRenderer {
     }
 
     end(err) {
+        if (this._id) {
+            clearInterval(this._id);
+            this._id = undefined;
+        }
+
         if (this._mode === 'full') {
-            if (this._id) {
-                clearInterval(this._id);
-                this._id = undefined;
-            }
-
             renderFull(this._tasks, this._options);
+        }
 
-            if (this._options.clearOutput && err === undefined) {
-                logUpdate.clear();
-            } else {
-                logUpdate.done();
-            }
-        } else if (this._mode === 'flat') {
+        if (this._options.clearOutput && err === undefined) {
+            logUpdate.clear();
+        } else {
+            logUpdate.done();
+        }
+
+        if (this._mode === 'flat') {
             renderFlatSummary(this._tasks);
         }
     }
