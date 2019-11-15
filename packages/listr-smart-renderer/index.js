@@ -7,7 +7,7 @@ const cliTruncate = require('cli-truncate');
 const stripAnsi = require('strip-ansi');
 const utils = require('./lib/utils');
 
-const renderHelper = (tasks, options, level) => {
+const renderFullHelper = (tasks, options, level) => {
     level = level || 0;
 
     let output = [];
@@ -36,7 +36,7 @@ const renderHelper = (tasks, options, level) => {
             }
 
             if ((task.isPending() || task.hasFailed() || options.collapse === false) && (task.hasFailed() || options.showSubtasks !== false) && task.subtasks.length > 0) {
-                output = output.concat(renderHelper(task.subtasks, options, level + 1));
+                output = output.concat(renderFullHelper(task.subtasks, options, level + 1));
             }
         }
     }
@@ -44,14 +44,37 @@ const renderHelper = (tasks, options, level) => {
     return output.join('\n');
 };
 
-const render = (tasks, options) => {
-    logUpdate(renderHelper(tasks, options));
+const renderFull = (tasks, options) => {
+    logUpdate(renderFullHelper(tasks, options));
+};
+
+const renderFlatSummary = (tasks) => {
+    logUpdate(`Finished executing ${tasks.length} tasks`);
+};
+
+const renderFlat = (tasks, options) => {
+    tasks.forEach((task, index) => {
+        task.subscribe((event) => {
+            // console.log('new event', event);
+            if (event.type === 'STATE' && task.isPending()) {
+                logUpdate(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`);
+            }
+
+            if (event.type === 'STATE' && task.hasFailed()) {
+                logUpdate(`Executing task ${index + 1} of ${tasks.length}: FAILED`);
+                logUpdate.done();
+                // console.log(task);
+            }
+        });
+    });
 };
 
 class SmartRenderer {
     constructor(tasks, options) {
         this._tasks = tasks;
+        this._mode = 'full';
         this._options = Object.assign({
+            maxFullTasks: 50,
             showSubtasks: true,
             collapse: true,
             clearOutput: false
@@ -59,28 +82,38 @@ class SmartRenderer {
     }
 
     render() {
-        if (this._id) {
-            // Do not render if we are already rendering
-            return;
-        }
+        if (this._tasks.length > this._options.maxFullTasks) {
+            this._mode = 'flat';
+            renderFlat(this._tasks, this._options);
+        } else {
+            this._mode = 'full';
+            if (this._id) {
+                // Do not render if we are already rendering
+                return;
+            }
 
-        this._id = setInterval(() => {
-            render(this._tasks, this._options);
-        }, 100);
+            this._id = setInterval(() => {
+                renderFull(this._tasks, this._options);
+            }, 100);
+        }
     }
 
     end(err) {
-        if (this._id) {
-            clearInterval(this._id);
-            this._id = undefined;
-        }
+        if (this._mode === 'full') {
+            if (this._id) {
+                clearInterval(this._id);
+                this._id = undefined;
+            }
 
-        render(this._tasks, this._options);
+            renderFull(this._tasks, this._options);
 
-        if (this._options.clearOutput && err === undefined) {
-            logUpdate.clear();
-        } else {
-            logUpdate.done();
+            if (this._options.clearOutput && err === undefined) {
+                logUpdate.clear();
+            } else {
+                logUpdate.done();
+            }
+        } else if (this._mode === 'flat') {
+            renderFlatSummary(this._tasks);
         }
     }
 }
