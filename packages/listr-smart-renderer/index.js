@@ -7,7 +7,7 @@ const cliTruncate = require('cli-truncate');
 const stripAnsi = require('strip-ansi');
 const utils = require('./lib/utils');
 
-const renderHelper = (tasks, options, level) => {
+const renderFullHelper = (tasks, options, level) => {
     level = level || 0;
 
     let output = [];
@@ -36,7 +36,11 @@ const renderHelper = (tasks, options, level) => {
             }
 
             if ((task.isPending() || task.hasFailed() || options.collapse === false) && (task.hasFailed() || options.showSubtasks !== false) && task.subtasks.length > 0) {
-                output = output.concat(renderHelper(task.subtasks, options, level + 1));
+                if (task.subtasks.length > options.maxFullTasks) {
+                    output = output.concat(renderSummaryHelper(task.subtasks, options, level + 1));
+                } else {
+                    output = output.concat(renderFullHelper(task.subtasks, options, level + 1));
+                }
             }
         }
     }
@@ -44,14 +48,38 @@ const renderHelper = (tasks, options, level) => {
     return output.join('\n');
 };
 
-const render = (tasks, options) => {
-    logUpdate(renderHelper(tasks, options));
+const renderFullMode = (tasks, options) => {
+    logUpdate(renderFullHelper(tasks, options));
+};
+
+const renderSummary = (tasks) => {
+    logUpdate(`Finished executing ${tasks.length} tasks`);
+};
+
+const renderSummaryHelper = (tasks, options) => {
+    let output = [];
+    tasks.forEach((task, index) => {
+        if (task.hasFailed()) {
+            output.push(`Executing task ${index + 1} of ${tasks.length}: FAILED - ${task.output}`);
+        }
+        if (task.isPending()) {
+            output.push(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`);
+        }
+    });
+
+    return output.join('\n');
+};
+
+const renderSummaryMode = (tasks, options) => {
+    logUpdate(renderSummaryHelper(tasks, options));
 };
 
 class SmartRenderer {
     constructor(tasks, options) {
         this._tasks = tasks;
+        this._mode = 'full';
         this._options = Object.assign({
+            maxFullTasks: 50,
             showSubtasks: true,
             collapse: true,
             clearOutput: false
@@ -64,9 +92,17 @@ class SmartRenderer {
             return;
         }
 
-        this._id = setInterval(() => {
-            render(this._tasks, this._options);
-        }, 100);
+        if (this._tasks.length > this._options.maxFullTasks) {
+            this._mode = 'summary';
+            this._id = setInterval(() => {
+                renderSummaryMode(this._tasks, this._options);
+            }, 100);
+        } else {
+            this._mode = 'full';
+            this._id = setInterval(() => {
+                renderFullMode(this._tasks, this._options);
+            }, 100);
+        }
     }
 
     end(err) {
@@ -75,12 +111,18 @@ class SmartRenderer {
             this._id = undefined;
         }
 
-        render(this._tasks, this._options);
+        if (this._mode === 'full') {
+            renderFullMode(this._tasks, this._options);
+        }
 
         if (this._options.clearOutput && err === undefined) {
             logUpdate.clear();
         } else {
             logUpdate.done();
+        }
+
+        if (this._mode === 'summary') {
+            renderSummary(this._tasks);
         }
     }
 }
