@@ -50,14 +50,31 @@ const renderFullHelper = (tasks, options, level) => {
 
 const renderFlatHelper = (tasks, options) => {
     let output = [];
+    let states = {complete: [], failed: [], skipped: [], disabled: []};
+
     tasks.forEach((task, index) => {
         if (task.hasFailed()) {
+            states.failed.push(task);
             output.push(`Executing task ${index + 1} of ${tasks.length}: FAILED - ${task.output}`);
         }
         if (task.isPending()) {
             output.push(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`);
         }
+
+        if (task.isCompleted()) {
+            states.complete.push(task);
+        }
+
+        if (task.isSkipped()) {
+            states.skipped.push(task);
+        }
+
+        if (!task.isEnabled()) {
+            states.disabled.push(task);
+        }
     });
+
+    output.push(`Total: ${tasks.length}. Complete: ${states.complete.length}, Failed: ${states.failed.length}, Skipped: ${states.skipped.length}, Disabled: ${states.disabled.length}`);
 
     return output.join('\n');
 };
