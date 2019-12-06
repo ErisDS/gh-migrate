@@ -48,17 +48,21 @@ const renderFullHelper = (tasks, options, level = 0) => {
     return output.join('\n');
 };
 
-const renderFlatHelper = (tasks, options) => {
+const renderFlatHelper = (tasks, options, level = 0) => {
     let output = [];
     let states = {complete: [], failed: [], skipped: [], disabled: []};
 
     tasks.forEach((task, index) => {
         if (task.hasFailed()) {
             states.failed.push(task);
-            output.push(`Executing task ${index + 1} of ${tasks.length}: FAILED - ${task.output}`);
+            output.push(indentString(`Executing task ${index + 1} of ${tasks.length}: FAILED - ${task.output}`, level));
         }
         if (task.isPending()) {
-            output.push(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`);
+            output.push(indentString(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`, level));
+        }
+
+        if (task.subtasks.length > 0) {
+            output = output.concat(renderHelper(task.subtasks, options, level + 1));
         }
 
         if (task.isCompleted()) {
@@ -74,7 +78,7 @@ const renderFlatHelper = (tasks, options) => {
         }
     });
 
-    output.push(`Total: ${tasks.length}. Complete: ${states.complete.length}, Failed: ${states.failed.length}, Skipped: ${states.skipped.length}, Disabled: ${states.disabled.length}`);
+    output.push(indentString(`Total: ${tasks.length}. Complete: ${states.complete.length}, Failed: ${states.failed.length}, Skipped: ${states.skipped.length}, Disabled: ${states.disabled.length}`, level));
 
     return output.join('\n');
 };
