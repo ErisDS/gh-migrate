@@ -33,61 +33,34 @@ exports.run = async (argv) => {
         // Run the migration
         // await migrate.run(context);
         // const makeTaskRunner = require('../lib/task-runner');
+
         const Listr = require('listr');
-        const logUpdate = require('log-update');
+        const myRenderer = require('@tryghost/listr-smart-renderer');
+        const options = {renderer: myRenderer, exitOnError: false, maxFullTasks: 10, concurrent: 2};
 
-        class CustomRenderer {
-            constructor(tasks, options) {
-                this._tasks = tasks;
-                this._options = Object.assign({}, options);
-            }
-
-            static get nonTTY() {
-                return true;
-            }
-
-            render() {
-                this._tasks.forEach((task, index) => {
-                    task.subscribe((event) => {
-                        console.log('new event', event);
-                        // if (event.type === 'STATE' && task.isPending()) {
-                        //     logUpdate(`Executing task ${index + 1} of ${this._tasks.length}: ${task.title}`);
-                        // }
-
-                        // if (event.type === 'STATE' && task.hasFailed()) {
-                        //     logUpdate(`Executing task ${index + 1} of ${this._tasks.length}: FAILED`);
-                        //     logUpdate.done();
-                        //     console.log(task);
-                        // }
-                    });
+        const getSubTasks = (numSubTasks = 5) => {
+            let subtasks = [];
+            for (let i = 0; i < numSubTasks; i++) {
+                subtasks.push({
+                    title: `Tasky McTaskFace ${i}`,
+                    enabled: ctx => i !== 3,
+                    skip: ctx => i === 1,
+                    task: (ctx) => {
+                        return new Promise((resolve, reject) => {
+                            // no op
+                            setTimeout(() => {
+                                if (i === 5) {
+                                    return reject(new Error('blah blah'));
+                                }
+                                return resolve('z');
+                            }, 500);
+                        });
+                    }
                 });
-                // for (const task of this._tasks) {
-                //     task.subscribe((event) => {
-                //         if (event.type === 'STATE' && task.isPending()) {
-                //             console.log(task);
-                //             //logUpdate()
-                //         }
-                //         // if (event.type === 'STATE' && task.isCompleted()) {
-                //         //     console.log(`${task.title} [done]`);
-                //         // }
-                //     });
-                // }
             }
 
-            end(err) {
-                logUpdate.done();
-                // if (err) {
-                //     console.log(err);
-                // }
-            }
-        }
-
-        const listrUpdateRenderer = require('listr-update-renderer');
-        console.log(listrUpdateRenderer);
-
-        class MyRenderer extends listrUpdateRenderer {
-
-        }
+            return subtasks;
+        };
 
         let tasks = [{
             title: 'Step 1: initialise',
@@ -98,56 +71,47 @@ exports.run = async (argv) => {
         {
             title: 'Step 2: fucktonne of subtasks',
             task: (ctx, task) => {
-                let numSubTasks = 20;
-                let subtasks = [];
-                for (let i = 0; i < numSubTasks; i++) {
-                    subtasks.push({
-                        title: `Task ${i + 1} of ${numSubTasks}`,
-                        task: (ctx) => {
-                            return new Promise((resolve, reject) => {
-                                // no op
-                                setTimeout(() => {
-                                    if (i === 5) {
-                                        return reject('a');
-                                    }
-                                    return resolve('z');
-                                }, 500);
-                            });
-                        }
-                    });
-                }
-
-                return new Listr(subtasks, {renderer: CustomRenderer, exitOnError: false});
+                return new Listr(getSubTasks(15), options);
             }
         }, {
-            title: 'Step 3: finalise',
+            title: 'Step 3: skipped',
+            skip: ctx => true,
+            task: (ctx) => {
+                return Promise.resolve('lala');
+            }
+        },
+        {
+            title: 'Step 4: finalise',
+            task: (ctx) => {
+                return Promise.resolve('lala');
+            }
+        },
+        {
+            title: 'Step 5: disabled',
+            enabled: ctx => false,
             task: (ctx) => {
                 return Promise.resolve('lala');
             }
         }
         ];
 
-        let numSubTasks = 10;
-        let subtasks = [];
-        for (let i = 0; i < numSubTasks; i++) {
-            subtasks.push({
-                title: `Tasky McTaskFace`,
-                task: (ctx) => {
-                    return new Promise((resolve, reject) => {
-                        // no op
-                        setTimeout(() => {
-                            if (i === 5) {
-                                return reject(new Error('blah blah'));
-                            }
-                            return resolve('z');
-                        }, 500);
-                    });
+        let runner;
+
+        // Nested Runner
+        if (argv.nested) {
+            runner = new Listr(tasks, options);
+        } else {
+            // Simple Runner
+            let t = getSubTasks(15);
+            t.push({
+                title: 'last thing',
+                task: () => {
+                    return new Listr(getSubTasks(20), options);
                 }
             });
+            runner = new Listr(t, options);
         }
 
-        let runner = new Listr(subtasks, {renderer: CustomRenderer, exitOnError: false});
-        // let runner = new Listr(tasks, {renderer: CustomRenderer, exitOnError: false});
         await runner.run(context);
 
         ui.log('finished');
@@ -155,7 +119,12 @@ exports.run = async (argv) => {
             ui.log.info('Done', require('util').inspect(context.result.data, false, 2));
         }
     } catch (error) {
-        ui.log.info('Done with errors', context.errors);
+        ui.log.info('Done with errors');
+        if (context.errors.length > 0) {
+            ui.log.error(context.errors);
+        } else {
+            ui.log.error(error);
+        }
     }
 
     // Report success
