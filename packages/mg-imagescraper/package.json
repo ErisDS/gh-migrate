@@ -21,7 +21,7 @@
   "devDependencies": {
     "mocha": "6.2.2",
     "should": "13.2.3",
-    "sinon": "7.5.0"
+    "sinon": "8.0.2"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.2",
