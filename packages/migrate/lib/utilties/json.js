@@ -1,5 +1,6 @@
 const makeTaskRunner = require('../task-runner');
 const mgHtmlMobiledoc = require('@tryghost/mg-html-mobiledoc');
+const MgImageScraper = require('@tryghost/mg-imagescraper');
 const fsUtils = require('@tryghost/mg-fs-utils');
 const {slugify} = require('@tryghost/string');
 const hydrate = require('@tryghost/mg-json/lib/to-ghost-json/hydrate');
@@ -97,11 +98,31 @@ const jsonTasks = {
                         return {
                             title: user.name || user.slug,
                             task: () => {
-                                user = hydrate.users(user, {});
+                                user = hydrate.users(user, options);
                             }
                         };
                     });
 
+                    return makeTaskRunner(tasks, options);
+                } catch (error) {
+                    ctx.errors.push(error);
+                    throw error;
+                }
+            }
+        };
+    },
+    image: (options) => {
+        return {
+            title: 'Fetch images via ImageSraper',
+            task: async (ctx) => {
+                try {
+                    // @TODO: figure out a better way to handle both formats of export
+                    let root = findResourceRoot(ctx);
+                    ctx.result.data = get(ctx, `${root}`);
+
+                    ctx.imageScraper = new MgImageScraper(ctx.fileCache, options);
+                    // 5. Pass the JSON file through the image scraper
+                    let tasks = ctx.imageScraper.fetch(ctx);
                     return makeTaskRunner(tasks, options);
                 } catch (error) {
                     ctx.errors.push(error);

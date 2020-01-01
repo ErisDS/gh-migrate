@@ -24,11 +24,31 @@ const ScrapeError = ({src, code, statusCode}) => {
 };
 
 class ImageScraper {
-    constructor(fileCache) {
+    constructor(fileCache, options = {}) {
         this.fileCache = fileCache;
+
+        if (options.domain) {
+            this.domain = options.domain;
+        }
+    }
+
+    relativeToAbsolute(src) {
+        if (/^\/\//.test(src)) {
+            src = `https:${src}`;
+        } else if (/^\//.test(src) && this.domain) {
+            src = `${this.domain}${src}`;
+        }
+
+        return src;
     }
 
     async downloadImage(src) {
+        console.log('image', src);
+
+        src = this.relativeToAbsolute(src);
+
+        console.log('image 2.0', src);
+
         let imageUrl = url.parse(src);
         let imageFile = this.fileCache.resolveImageFileName(imageUrl.pathname);
 
@@ -90,7 +110,7 @@ class ImageScraper {
                 // For each field
                 _.forEach(resource, (value, field) => {
                     // @TODO: rework this code!
-                    if (isImageField(field)) {
+                    if (isImageField(field) && value) {
                         tasks.push({
                             title: `${type}: ${resource.slug} ${field}`,
                             task: async () => {
@@ -102,7 +122,7 @@ class ImageScraper {
                                 }
                             }
                         });
-                    } else if (isHTMLField(field)) {
+                    } else if (isHTMLField(field) && value) {
                         tasks.push({
                             title: `${type}: ${resource.slug} ${field}`,
                             task: async () => {
