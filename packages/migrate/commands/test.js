@@ -17,28 +17,24 @@ exports.setup = (sywac) => {
     });
 };
 
+exports.hidden = true;
+
 // What to do when this command is executed
 exports.run = async (argv) => {
     let timer = Date.now();
     let context = {errors: []};
+    let uniqueErrorId = 0;
 
     if (argv.verbose) {
         ui.log.info(`Running a test`);
     }
 
     try {
-        // Fetch the tasks, configured correctly according to the options passed in
-        // let migrate = medium.getTaskRunner(argv.pathToZip, argv);
-
-        // Run the migration
-        // await migrate.run(context);
-        // const makeTaskRunner = require('../lib/task-runner');
-
         const Listr = require('listr');
         const myRenderer = require('@tryghost/listr-smart-renderer');
         const options = {renderer: myRenderer, exitOnError: false, maxFullTasks: 10, concurrent: 2};
 
-        const getSubTasks = (numSubTasks = 5) => {
+        const getSubTasks = (numSubTasks = 5, extra) => {
             let subtasks = [];
             for (let i = 0; i < numSubTasks; i++) {
                 subtasks.push({
@@ -50,11 +46,21 @@ exports.run = async (argv) => {
                             // no op
                             setTimeout(() => {
                                 if (i === 5) {
-                                    return reject(new Error('blah blah'));
+                                    uniqueErrorId += 1;
+                                    return reject(new Error(`I am error ${uniqueErrorId}`));
                                 }
                                 return resolve('z');
                             }, 500);
                         });
+                    }
+                });
+            }
+
+            if (extra) {
+                subtasks.push({
+                    title: 'One last thing',
+                    task: () => {
+                        return new Listr(getSubTasks(10), options);
                     }
                 });
             }
@@ -71,7 +77,7 @@ exports.run = async (argv) => {
         {
             title: 'Step 2: fucktonne of subtasks',
             task: (ctx, task) => {
-                return new Listr(getSubTasks(15), options);
+                return new Listr(getSubTasks(25, true), options);
             }
         }, {
             title: 'Step 3: skipped',
@@ -102,31 +108,23 @@ exports.run = async (argv) => {
             runner = new Listr(tasks, options);
         } else {
             // Simple Runner
-            let t = getSubTasks(15);
-            t.push({
-                title: 'last thing',
-                task: () => {
-                    return new Listr(getSubTasks(20), options);
-                }
-            });
-            runner = new Listr(t, options);
+            runner = new Listr(getSubTasks(15, true), options);
         }
 
         await runner.run(context);
 
-        ui.log('finished');
-        if (argv.verbose) {
-            ui.log.info('Done', require('util').inspect(context.result.data, false, 2));
-        }
+        // ui.log('finished');
+        // if (argv.verbose) {
+        //     ui.log.info('Done', require('util').inspect(context.result.data, false, 2));
+        // }
     } catch (error) {
-        ui.log.info('Done with errors');
-        if (context.errors.length > 0) {
-            ui.log.error(context.errors);
-        } else {
-            ui.log.error(error);
-        }
-    }
+        console.log(error);
+        // ui.log.info('Done with errors');
+        // if (context.errors.length > 0) {
+        //     ui.log.error(context.errors);
+        // } else {
+        //     ui.log.error(error);
 
-    // Report success
-    ui.log.ok(`Successfully written output to ${context.outputFile} in ${Date.now() - timer}ms.`);
+        // }
+    }
 };
