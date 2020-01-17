@@ -2,10 +2,9 @@
 const logUpdate = require('log-update');
 const chalk = require('chalk');
 const figures = require('figures');
-const indentString = require('indent-string');
 const cliTruncate = require('cli-truncate');
 const stripAnsi = require('strip-ansi');
-const utils = require('./lib/utils');
+const {indentString, getSymbol, isDefined, taskNumber} = require('./lib/utils');
 
 const renderFullHelper = (tasks, options, level = 0) => {
     let output = [];
@@ -19,10 +18,10 @@ const renderFullHelper = (tasks, options, level = 0) => {
         const skipped = task.isSkipped() ? ` ${chalk.dim('[skipped]')}` : '';
 
         // Main output
-        output.push(indentString(` ${utils.getSymbol(task, options)} ${task.title}${skipped}`, level, '  '));
+        output.push(indentString(`${getSymbol(task, options)} ${task.title}${skipped}`, level));
 
         // Handle any task data that needs to be output
-        if ((task.isPending() || task.isSkipped() || task.hasFailed()) && utils.isDefined(task.output)) {
+        if ((task.isPending() || task.isSkipped() || task.hasFailed()) && isDefined(task.output)) {
             let data = task.output;
 
             if (typeof data === 'string') {
@@ -33,8 +32,8 @@ const renderFullHelper = (tasks, options, level = 0) => {
                 }
             }
 
-            if (utils.isDefined(data)) {
-                const out = indentString(`${figures.arrowRight} ${data}`, level, '  ');
+            if (isDefined(data)) {
+                const out = indentString(`${figures.arrowRight} ${data}`, level);
                 output.push(`   ${chalk.gray(cliTruncate(out, process.stdout.columns - 3))}`);
             }
         }
@@ -55,10 +54,14 @@ const renderFlatHelper = (tasks, options, level = 0) => {
     tasks.forEach((task, index) => {
         if (task.hasFailed()) {
             states.failed.push(task);
-            output.push(indentString(`Executing task ${index + 1} of ${tasks.length}: FAILED - ${task.output}`, level));
+
+            if (!task.output && task.hasSubtasks()) {
+                task.output = `${chalk.red.dim(`Subtask failed ${figures.arrowDown}`)}`;
+            }
+            output.push(indentString(`${getSymbol(task, options)} ${taskNumber(index, tasks)}: ${task.title} - ${task.output}`, level));
         }
         if (task.isPending()) {
-            output.push(indentString(`Executing task ${index + 1} of ${tasks.length}: ${task.title}`, level));
+            output.push(indentString(`${getSymbol(task, options)} ${taskNumber(index, tasks)}: ${task.title}`, level));
         }
 
         if (task.subtasks.length > 0) {
